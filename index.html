@@ -8,34 +8,85 @@
 <style>
   body {
     font-family: sans-serif;
-    margin: 20px;
+    padding: 16px;
+    margin: 0;
     line-height: 1.6;
   }
+  h2 {
+    text-align: center;
+    margin-bottom: 20px;
+  }
   select, button {
-    padding: 10px;
-    font-size: 16px;
+    width: 100%;
+    padding: 14px;
+    font-size: 18px;
+    margin: 8px 0;
+    border-radius: 8px;
   }
   #results div {
-    background: #f2f2f2;
-    padding: 10px;
-    margin-bottom: 10px;
+    background: #f5f5f5;
+    padding: 14px;
+    margin-bottom: 12px;
     border-radius: 8px;
+  }
+  #retryBtn {
+    background: #ffaa33;
+    color: #000;
+    border: none;
+    font-weight: bold;
+  }
+  #searchBtn {
+    background: #0078ff;
+    color: white;
+    border: none;
   }
 </style>
 
-<script src="config.js"></script>
 <script>
-  // Google Maps API を callback=initApp で読み込む
-  function loadMaps() {
+// ★ バージョン番号（キャッシュバスター）を YYYYMMDDHHMM 形式で生成
+function makeVersion() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, "0");
+
+  return (
+    d.getFullYear() +
+    pad(d.getMonth() + 1) +
+    pad(d.getDate()) +
+    pad(d.getHours()) +
+    pad(d.getMinutes())
+  );
+}
+
+const VERSION = makeVersion();
+
+// ★ config.js と app.js を動的にロード（毎回キャッシュ無効）
+function loadLocalScripts() {
+  const scripts = ["config.js", "app.js"];
+
+  scripts.forEach(name => {
     const s = document.createElement("script");
-    s.src =
-      "https://maps.googleapis.com/maps/api/js?key=" +
-      window.APP_CONFIG.GOOGLE_MAPS_API_KEY +
-      "&libraries=places&callback=initApp";
-    s.async = true;
+    s.src = `${name}?v=${VERSION}`;  // 自動バージョン付加
     document.head.appendChild(s);
-  }
-  window.onload = loadMaps;
+  });
+}
+
+// ★ Google Maps API をロード
+function loadMaps() {
+  const s = document.createElement("script");
+  s.src =
+    "https://maps.googleapis.com/maps/api/js?key=" +
+    window.APP_CONFIG.GOOGLE_MAPS_API_KEY +
+    "&libraries=places&callback=initApp";
+  s.async = true;
+  document.head.appendChild(s);
+}
+
+// index.htmlロード完了時にまず config.js / app.js をロードし、そのあと Maps をロード
+window.onload = () => {
+  loadLocalScripts();
+  // Maps API は config.js 読み込み後に init される必要があるため少し遅延させる
+  setTimeout(loadMaps, 300);
+};
 </script>
 </head>
 
@@ -61,12 +112,13 @@
   </select>
 </div>
 
-<br>
 <button id="searchBtn">提案！</button>
 
 <p id="status"></p>
 <div id="results"></div>
 
-<script src="app.js"></script>
+<!-- map領域（透明） -->
+<div id="hiddenMap" style="width:1px;height:1px;opacity:0;"></div>
+
 </body>
 </html>
