@@ -1,124 +1,184 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>TekiTrip</title>
+  <meta charset="UTF-8" />
+  <title>Tekitrip</title>
 
-<style>
-  body {
-    font-family: sans-serif;
-    padding: 16px;
-    margin: 0;
-    line-height: 1.6;
-  }
-  h2 {
-    text-align: center;
-    margin-bottom: 20px;
-  }
-  select, button {
-    width: 100%;
-    padding: 14px;
-    font-size: 18px;
-    margin: 8px 0;
-    border-radius: 8px;
-  }
-  #results div {
-    background: #f5f5f5;
-    padding: 14px;
-    margin-bottom: 12px;
-    border-radius: 8px;
-  }
-  #retryBtn {
-    background: #ffaa33;
-    color: #000;
-    border: none;
-    font-weight: bold;
-  }
-  #searchBtn {
-    background: #0078ff;
-    color: white;
-    border: none;
-  }
-</style>
+  <!-- キャッシュ抑止（ブラウザ側ヒント） -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
 
-<script>
-// ★ バージョン番号（キャッシュバスター）を YYYYMMDDHHMM 形式で生成
-function makeVersion() {
-  const d = new Date();
-  const pad = n => String(n).padStart(2, "0");
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  return (
-    d.getFullYear() +
-    pad(d.getMonth() + 1) +
-    pad(d.getDate()) +
-    pad(d.getHours()) +
-    pad(d.getMinutes())
-  );
-}
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #f4f4f4;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      font-size: 20px;
+      margin-top: 0;
+    }
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .controls-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    select, button {
+      padding: 8px;
+      font-size: 14px;
+    }
+    #status {
+      margin: 8px 0;
+      font-size: 14px;
+    }
+    #results {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .place-card {
+      display: flex;
+      gap: 8px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 8px;
+      background: #fafafa;
+    }
+    .place-photo-wrap {
+      flex-shrink: 0;
+    }
+    .place-photo {
+      width: 120px;
+      height: 90px;
+      object-fit: cover;
+      border-radius: 6px;
+    }
+    .place-main {
+      flex: 1;
+      font-size: 14px;
+    }
+    .place-name {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    .place-category {
+      color: #555;
+      margin-bottom: 2px;
+    }
+    .place-rating, .place-address {
+      margin-bottom: 2px;
+    }
+    .place-link a {
+      color: #1a73e8;
+      text-decoration: none;
+    }
+    .place-link a:hover {
+      text-decoration: underline;
+    }
 
-const VERSION = makeVersion();
-
-// ★ config.js と app.js を動的にロード（毎回キャッシュ無効）
-function loadLocalScripts() {
-  const scripts = ["config.js", "app.js"];
-
-  scripts.forEach(name => {
-    const s = document.createElement("script");
-    s.src = `${name}?v=${VERSION}`;  // 自動バージョン付加
-    document.head.appendChild(s);
-  });
-}
-
-// ★ Google Maps API をロード
-function loadMaps() {
-  const s = document.createElement("script");
-  s.src =
-    "https://maps.googleapis.com/maps/api/js?key=" +
-    window.APP_CONFIG.GOOGLE_MAPS_API_KEY +
-    "&libraries=places&callback=initApp";
-  s.async = true;
-  document.head.appendChild(s);
-}
-
-// index.htmlロード完了時にまず config.js / app.js をロードし、そのあと Maps をロード
-window.onload = () => {
-  loadLocalScripts();
-  // Maps API は config.js 読み込み後に init される必要があるため少し遅延させる
-  setTimeout(loadMaps, 300);
-};
-</script>
+    @media (max-width: 600px) {
+      .place-card {
+        flex-direction: column;
+      }
+      .place-photo {
+        width: 100%;
+        height: auto;
+      }
+    }
+  </style>
 </head>
-
 <body>
-<h2>TekiTrip（ランダム旅行提案）</h2>
+  <div class="container">
+    <h1>テキトリップ</h1>
 
-<div>
-  <label>カテゴリ：</label>
-  <select id="category">
-    <option value="food">フード＆ドリンク</option>
-    <option value="shopping">ショッピング</option>
-    <option value="outdoor">アウトドア＆レクリエーション</option>
-    <option value="stay">宿泊地</option>
-  </select>
-</div>
+    <div class="controls">
+      <div class="controls-row">
+        <label>
+          カテゴリ:
+          <select id="category">
+            <option value="food">フード＆ドリンク</option>
+            <option value="shopping">ショッピング</option>
+            <option value="outdoor">アウトドア＆レクリエーション</option>
+            <option value="stay">宿泊地</option>
+          </select>
+        </label>
+      </div>
+      <div class="controls-row">
+        <label>
+          距離:
+          <select id="distance">
+            <option value="justnow">ここらへん</option>
+            <option value="near">今から行く（約15km）</option>
+            <option value="mid">1日で行く（約50km）</option>
+            <option value="minitrip">1泊まで（約100km）</option>
+            <option value="trip">旅行で行く（200〜800km）</option>
+          </select>
+        </label>
+      </div>
+      <div class="controls-row">
+        <button id="searchBtn">提案！</button>
+        <button id="retryBtn">もう一回！</button>
+      </div>
+    </div>
 
-<div>
-  <label>距離：</label>
-  <select id="distance">
-    <option value="near">すぐ行ける（15km）</option>
-    <option value="mid">1日で行く（100km）</option>
-    <option value="far">旅行で行く（200〜500km）</option>
-  </select>
-</div>
+    <div id="status">カテゴリと距離を選んで「提案！」を押してください。</div>
+    <div id="results"></div>
+  </div>
 
-<button id="searchBtn">提案！</button>
+  <!-- APIキー設定 -->
+  <script src="config.js"></script>
 
-<p id="status"></p>
-<div id="results"></div>
+  <!-- app.js をキャッシュバスター付きで読み込む -->
+  <script>
+    (function() {
+      var s = document.createElement('script');
+      var v = new Date();
+      var ver = v.getFullYear().toString()
+              + ('0' + (v.getMonth() + 1)).slice(-2)
+              + ('0' + v.getDate()).slice(-2)
+              + ('0' + v.getHours()).slice(-2)
+              + ('0' + v.getMinutes()).slice(-2);
+      s.src = 'app.js?v=' + ver;
+      document.head.appendChild(s);
+    })();
+  </script>
 
-<!-- map領域（透明） -->
-<div id="hiddenMap" style="width:1px;height:1px;opacity:0;"></div>
+  <!-- Google Maps JavaScript API（callback で initApp を呼ぶ） -->
+  <script
+    id="gmaps-loader"
+    async
+    defer
+  ></script>
+
+  <script>
+    // config.js から API キーを差し込む
+    (function() {
+      const script = document.getElementById('gmaps-loader');
+      if (!script || !window.APP_CONFIG || !window.APP_CONFIG.GOOGLE_MAPS_API_KEY) return;
+      const key = encodeURIComponent(window.APP_CONFIG.GOOGLE_MAPS_API_KEY);
+      script.src =
+        `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places&callback=initApp`;
+    })();
+  </script>
 
 </body>
 </html>

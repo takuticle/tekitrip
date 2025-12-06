@@ -5,8 +5,9 @@ console.log("App.js loaded");
 // -----------------------------
 
 const SUGGESTION_COUNT = 5;      // 提案件数
-const MAX_BATCH_TRIES = 10;      // バッチ最大試行回数
+const MAX_BATCH_TRIES = 50;      // バッチ最大試行回数（拡大）
 const MIN_BATCH_HITS = 5;        // バッチを有効とみなす下限件数
+const MIN_BATCH_TRIES = 5;       // 最低でもこの回数までは検索する（※成功バッチ数で管理）
 
 // カテゴリごとの primaryType 群
 const CATEGORY_TYPES = {
@@ -28,10 +29,22 @@ const CATEGORY_TYPES = {
 };
 
 // 距離プリセット
+// key は <select id="distance"> の value と一致させる
 const DISTANCE_PRESETS = {
-  near: { ringKm: 15, radiusM: 2000 },
-  mid:  { ringKm: 100, radiusM: 10000 },
-  far:  { ringMinKm: 200, ringMaxKm: 500, radiusM: 50000, isRange: true }
+  // ここらへん：現在地まわり 500m
+  justnow: { ringKm: 0.5, radiusM: 500 },
+
+  // 今から行く：15km リング・半径 2km
+  near:    { ringKm: 15,  radiusM: 2000 },
+
+  // 1日で行く：50km リング・半径 5km
+  mid:     { ringKm: 50,  radiusM: 5000 },
+
+  // 1泊まで：100km リング・半径 10km
+  minitrip:{ ringKm: 100, radiusM: 10000 },
+
+  // 旅行で行く：200〜800km リング・半径 50km（範囲指定）
+  trip:    { ringMinKm: 200, ringMaxKm: 800, radiusM: 50000, isRange: true }
 };
 
 // -----------------------------
@@ -113,7 +126,7 @@ async function searchOneBatch(userPos, preset, categoryKey) {
   const request = {
     locationRestriction: {
       center,
-      radius: preset.radiusM   // ★ New Places API 正式形
+      radius: preset.radiusM   // New Places API 正式形
     },
     includedPrimaryTypes: types,
     maxResultCount: 20,
@@ -148,7 +161,7 @@ async function searchOneBatch(userPos, preset, categoryKey) {
 function renderResults(places, statusEl, resultsEl) {
   if (!places.length) {
     statusEl.textContent =
-      "候補が十分に見つかりませんでした。条件を変えて再検索してください。";
+      "十分な件数が見つかりませんでした。再検索してみてください。";
     resultsEl.innerHTML = "";
     return;
   }
@@ -175,7 +188,7 @@ function renderResults(places, statusEl, resultsEl) {
     const rating = p.rating ?? "評価なし";
     const address = p.formattedAddress || "住所情報なし";
 
-    // Google Map へのリンク（Gemini 提示形式）
+    // Google Map へのリンク（query + query_place_id）
     const mapUrl =
       "https://www.google.com/maps/search/?" +
       "api=1" +
@@ -188,11 +201,9 @@ function renderResults(places, statusEl, resultsEl) {
       const photo = p.photos[0];
       let photoUrl = "";
 
-      // 新しめの型では getUrl()
       if (typeof photo.getUrl === "function") {
         photoUrl = photo.getUrl({ maxWidth: 400, maxHeight: 300 });
       } else if (typeof photo.getURI === "function") {
-        // 一部バージョンでは getURI 名
         photoUrl = photo.getURI({ maxWidth: 400, maxHeight: 300 });
       }
 
@@ -286,13 +297,14 @@ async function searchPlaces() {
   console.log("=== Search Start ===");
 
   const poolById = new Map();
-  let validBatchCount = 0;
+  let validBatchCount = 0;  // ★成功バッチ数（5件以上ヒット）
 
   for (let i = 0; i < MAX_BATCH_TRIES; i++) {
     const batch = await searchOneBatch(userPos, preset, categoryKey);
     console.log(`Batch ${i + 1}: ${batch.length}件`);
 
     if (batch.length >= MIN_BATCH_HITS) {
+      // 成功バッチとしてカウント
       validBatchCount++;
       for (const p of batch) {
         if (!poolById.has(p.id)) {
@@ -303,7 +315,11 @@ async function searchPlaces() {
       console.log(" → 少数バッチなので破棄");
     }
 
-    if (poolById.size >= SUGGESTION_COUNT * 3) {
+    // ★ 0件バッチはカウントしない。
+    // 「成功バッチ数」が MIN_BATCH_TRIES を超え、
+    // かつ候補が十分たまったら終了。
+    if (validBatchCount >= MIN_BATCH_TRIES &&
+        poolById.size >= SUGGESTION_COUNT * 3) {
       break;
     }
   }
