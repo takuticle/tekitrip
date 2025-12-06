@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ランダムおでかけ提案</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        #status { margin: 10px 0; color: #333; }
+        #control-area {
+            margin: 10px 0;
+        }
+        #results {
+            margin-top: 16px;
+        }
+    </style>
+
+    <!-- APIキー外出し -->
+    <script src="config.js"></script>
+
+    <!-- Google Maps JS API を callback 方式でロード（キーは config.js から埋め込む） -->
+    <script>
+        document.write(
+            '<script src="https://maps.googleapis.com/maps/api/js?key=' +
+            window.APP_CONFIG.GOOGLE_MAPS_API_KEY +
+            '&libraries=places&callback=initApp" async defer><\/script>'
+        );
+    </script>
+</head>
+
+<body>
+
+  <h2>ランダムおでかけ提案</h2>
+
+  <!-- 1. 現在地取得ボタン -->
+  <button id="getLocation">現在地を取得</button>
+  <p id="status">現在地を取得してください。</p>
+  
+  <!-- 2. カテゴリ・距離・提案ボタン -->
+  <div id="control-area">
+      <label>カテゴリ：</label>
+      <select id="category">
+          <option value="food">フード＆ドリンク</option>
+          <option value="shopping">ショッピング</option>
+          <option value="outdoor">アウトドア＆レクリエーション</option>
+      </select>
+  
+      <label>距離：</label>
+      <select id="distance">
+          <option value="near">すぐ行ける（15kmくらい）</option>
+          <option value="mid">1日で行く（100kmくらい）</option>
+          <option value="far">旅行で行く（200～500km）</option>
+      </select>
+  
+      <button id="searchBtn">提案！</button>
+  </div>
+  
+  <!-- 3. 候補一覧表示エリア -->
+  <div id="results"></div>
+  
+
+  <!-- アプリ本体 -->
+  <script src="app.js"></script>
+
+</body>
+</html>
