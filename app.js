@@ -1,376 +1,306 @@
-console.log("App.js loaded");
+/* ================================
+   Tekitrip - Random Trip Suggestion App
+   最新カテゴリ仕様（Markdown仕様書準拠）
+   ================================ */
 
-// -----------------------------
-// 定数・設定
-// -----------------------------
+   console.log("App.js loaded");
 
-const SUGGESTION_COUNT = 5;      // 提案件数
-const MAX_BATCH_TRIES = 50;      // バッチ最大試行回数（拡大）
-const MIN_BATCH_HITS = 5;        // バッチを有効とみなす下限件数
-const MIN_BATCH_TRIES = 5;       // 最低でもこの回数までは検索する（※成功バッチ数で管理）
-
-// カテゴリごとの primaryType 群
+   // ------------------------------
+   // 定数設定
+   // ------------------------------
+   const SUGGESTION_COUNT = 5;
+   const MAX_BATCH_TRIES = 50;
+   const MIN_BATCH_HITS = 5;
+   const MIN_SUCCESS_BATCH = 5;
+   
+   // カテゴリごとの primaryType 定義（仕様書準拠）
+// カテゴリごとの primaryType 定義
 const CATEGORY_TYPES = {
   food: [
-    "restaurant", "cafe", "bar", "bakery",
-    "meal_takeaway", "meal_delivery"
+    "bagel_shop","bakery","bar","bar_and_grill","cafe","cafeteria",
+    "candy_store","chocolate_factory","chocolate_shop","coffee_shop",
+    "confectionery","deli","dessert_shop","diner","donut_shop",
+    "food_court","ice_cream_shop","juice_shop","meal_takeaway",
+    "pub","restaurant","sandwich_shop","steak_house","tea_house",
+    "wine_bar"
   ],
+
   shopping: [
-    "shopping_mall", "store", "supermarket", "department_store"
+    "meal_takeaway","department_store","gift_shop","home_improvement_store",
+    "market","shopping_mall","sporting_goods_store","store","warehouse_store",
+    "wholesaler"
   ],
+
+  // ここが最新版の「アウトドア＆レクリエーション」
   outdoor: [
-    "tourist_attraction", "park", "campground", "rv_park",
-    "natural_feature", "beach", "hiking_area", "scenic_lookout",
-    "museum", "spa", "place_of_worship", "historical_landmark", "bridge"
+    "art_gallery",
+    "art_studio",
+    "auditorium",
+    "cultural_landmark",
+    "historical_place",
+    "monument",
+    "museum",
+    "performing_arts_theater",
+    "sculpture",
+    "adventure_sports_center",
+    "amphitheatre",
+    "amusement_center",
+    "amusement_park",
+    "aquarium",
+    "banquet_hall",
+    "barbecue_area",
+    "botanical_garden",
+    "bowling_alley",
+    "casino",
+    "childrens_camp",
+    "comedy_club",
+    "community_center",
+    "concert_hall",
+    "convention_center",
+    "cultural_center",
+    "cycling_park",
+    "dance_hall",
+    "dog_park",
+    "event_venue",
+    "ferris_wheel",
+    "garden",
+    "hiking_area",
+    "historical_landmark",
+    "internet_cafe",
+    "karaoke",
+    "marina",
+    "movie_rental",
+    "movie_theater",
+    "national_park",
+    "night_club",
+    "observation_deck",
+    "off_roading_area",
+    "opera_house",
+    "park",
+    "philharmonic_hall",
+    "picnic_ground",
+    "planetarium",
+    "plaza",
+    "roller_coaster",
+    "skateboard_park"
   ],
+
   stay: [
-    "lodging", "hotel", "motel", "campground", "rv_park", "guest_house"
-  ]
+    "bed_and_breakfast","campground","camping_cabin","cottage","guest_house",
+    "hostel","hotel","inn","japanese_inn","lodging","mobile_home_park",
+    "motel","private_guest_room","resort_hotel","rv_park"
+  ],
 };
 
-// 距離プリセット
-// key は <select id="distance"> の value と一致させる
-const DISTANCE_PRESETS = {
-  // ここらへん：現在地まわり 500m
-  justnow: { ringKm: 0.5, radiusM: 500 },
-
-  // 今から行く：15km リング・半径 2km
-  near:    { ringKm: 15,  radiusM: 2000 },
-
-  // 1日で行く：50km リング・半径 5km
-  mid:     { ringKm: 50,  radiusM: 5000 },
-
-  // 1泊まで：100km リング・半径 10km
-  minitrip:{ ringKm: 100, radiusM: 10000 },
-
-  // 旅行で行く：200〜800km リング・半径 50km（範囲指定）
-  trip:    { ringMinKm: 200, ringMaxKm: 800, radiusM: 50000, isRange: true }
-};
-
-// -----------------------------
-// ユーティリティ
-// -----------------------------
-
-function getDistancePreset(key) {
-  const p = DISTANCE_PRESETS[key];
-  if (!p) return DISTANCE_PRESETS.near;
-  return p;
-}
-
-// lat/lng と距離(km)とランダム方位から新しい座標を生成
-function randomPointFrom(lat, lng, preset) {
-  let dKm;
-  if (preset.isRange) {
-    const min = preset.ringMinKm;
-    const max = preset.ringMaxKm;
-    dKm = min + Math.random() * (max - min);
-  } else {
-    dKm = preset.ringKm;
-  }
-
-  const R = 6371; // 地球半径 km
-  const theta = Math.random() * 2 * Math.PI;
-
-  const lat1 = lat * Math.PI / 180;
-  const lng1 = lng * Math.PI / 180;
-  const d = dKm / R;
-
-  const lat2 = Math.asin(
-    Math.sin(lat1) * Math.cos(d) +
-    Math.cos(lat1) * Math.sin(d) * Math.cos(theta)
-  );
-  const lng2 =
-    lng1 +
-    Math.atan2(
-      Math.sin(theta) * Math.sin(d) * Math.cos(lat1),
-      Math.cos(d) - Math.sin(lat1) * Math.sin(lat2)
-    );
-
-  return {
-    lat: lat2 * 180 / Math.PI,
-    lng: lng2 * 180 / Math.PI
-  };
-}
-
-function escapeHtml(str) {
-  if (!str) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function pickRandom(arr, count) {
-  const tmp = [...arr];
-  const out = [];
-  while (tmp.length > 0 && out.length < count) {
-    const idx = Math.floor(Math.random() * tmp.length);
-    out.push(tmp[idx]);
-    tmp.splice(idx, 1);
-  }
-  return out;
-}
-
-// -----------------------------
-// Places 検索（1バッチ）
-// -----------------------------
-
-async function searchOneBatch(userPos, preset, categoryKey) {
-  const { Place, SearchNearbyRankPreference } = google.maps.places;
-  const types = CATEGORY_TYPES[categoryKey] || CATEGORY_TYPES.food;
-
-  const center = randomPointFrom(userPos.lat, userPos.lng, preset);
-
-  const request = {
-    locationRestriction: {
-      center,
-      radius: preset.radiusM   // New Places API 正式形
-    },
-    includedPrimaryTypes: types,
-    maxResultCount: 20,
-    rankPreference: SearchNearbyRankPreference.POPULARITY,
-    fields: [
-      "id",
-      "displayName",
-      "formattedAddress",
-      "primaryTypeDisplayName",
-      "rating",
-      "photos",
-      "location"
-    ]
-  };
-
-  try {
-    const { places } = await Place.searchNearby(request);
-    if (!places || places.length === 0) return [];
-
-    // 星4.0以上に絞る
-    return places.filter(p => (p.rating ?? 0) >= 4.0);
-  } catch (e) {
-    console.error("Batch error:", e);
-    return [];
-  }
-}
-
-// -----------------------------
-// 結果描画
-// -----------------------------
-
-function renderResults(places, statusEl, resultsEl) {
-  if (!places.length) {
-    statusEl.textContent =
-      "十分な件数が見つかりませんでした。再検索してみてください。";
-    resultsEl.innerHTML = "";
-    return;
-  }
-
-  statusEl.textContent = `候補 ${places.length} 件：`;
-
-  const cards = places.map(p => {
-    // 名称（LocalizedText or string 両対応）
-    let name = "名称不明";
-    if (typeof p.displayName === "string") {
-      name = p.displayName;
-    } else if (p.displayName && p.displayName.text) {
-      name = p.displayName.text;
-    }
-
-    // カテゴリ名
-    let category = "カテゴリ不明";
-    if (typeof p.primaryTypeDisplayName === "string") {
-      category = p.primaryTypeDisplayName;
-    } else if (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) {
-      category = p.primaryTypeDisplayName.text;
-    }
-
-    const rating = p.rating ?? "評価なし";
-    const address = p.formattedAddress || "住所情報なし";
-
-    // Google Map へのリンク（query + query_place_id）
-    const mapUrl =
-      "https://www.google.com/maps/search/?" +
-      "api=1" +
-      "&query=" + encodeURIComponent(name) +
-      "&query_place_id=" + encodeURIComponent(p.id);
-
-    // 写真（JS SDK の PlacePhoto.getUrl / getURI を利用）
-    let photoHtml = "";
-    if (Array.isArray(p.photos) && p.photos.length > 0) {
-      const photo = p.photos[0];
-      let photoUrl = "";
-
-      if (typeof photo.getUrl === "function") {
-        photoUrl = photo.getUrl({ maxWidth: 400, maxHeight: 300 });
-      } else if (typeof photo.getURI === "function") {
-        photoUrl = photo.getURI({ maxWidth: 400, maxHeight: 300 });
-      }
-
-      if (photoUrl) {
-        photoHtml = `
-          <div class="place-photo-wrap">
-            <img class="place-photo"
-                 src="${photoUrl}"
-                 alt="${escapeHtml(name)} の写真">
-          </div>`;
-      }
-    }
-
-    return `
-      <div class="place-card">
-        ${photoHtml}
-        <div class="place-main">
-          <div class="place-name">${escapeHtml(name)}</div>
-          <div class="place-category">${escapeHtml(category)}</div>
-          <div class="place-rating">評価: ${rating}</div>
-          <div class="place-address">${escapeHtml(address)}</div>
-          <div class="place-link">
-            <a href="${mapUrl}" target="_blank" rel="noopener">
-              GoogleMapで開く
-            </a>
-          </div>
-        </div>
-      </div>
-    `;
-  });
-
-  resultsEl.innerHTML = cards.join("\n");
-
-  // 「もう一回！」ボタン
-  const retryBtn = document.getElementById("retryBtn");
-  if (retryBtn) {
-    retryBtn.disabled = false;
-    retryBtn.textContent = "もう一回！";
-  }
-}
-
-// -----------------------------
-// メイン検索処理
-// -----------------------------
-
-async function searchPlaces() {
-  const categorySelect = document.getElementById("category");
-  const distanceSelect = document.getElementById("distance");
-  const statusEl = document.getElementById("status");
-  const resultsEl = document.getElementById("results");
-  const retryBtn = document.getElementById("retryBtn");
-
-  if (!categorySelect || !distanceSelect || !statusEl || !resultsEl) {
-    console.error("必要なDOM要素が見つかりません。");
-    return;
-  }
-
-  if (retryBtn) {
-    retryBtn.disabled = true;
-    retryBtn.textContent = "再検索中…";
-  }
-
-  resultsEl.innerHTML = "";
-  statusEl.textContent = "位置情報を取得中…";
-
-  // 位置情報取得（毎回）
-  let userPos;
-  try {
-    userPos = await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(
-        pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        err => reject(err),
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    });
-  } catch (e) {
-    console.error("位置情報エラー:", e);
-    statusEl.textContent = "位置情報が取得できませんでした。";
-    if (retryBtn) {
-      retryBtn.disabled = false;
-      retryBtn.textContent = "もう一回！";
-    }
-    return;
-  }
-
-  const categoryKey = categorySelect.value;
-  const distanceKey = distanceSelect.value;
-  const preset = getDistancePreset(distanceKey);
-
-  statusEl.textContent = "候補を検索中…";
-  console.log("=== Search Start ===");
-
-  const poolById = new Map();
-  let validBatchCount = 0;  // ★成功バッチ数（5件以上ヒット）
-
-  for (let i = 0; i < MAX_BATCH_TRIES; i++) {
-    const batch = await searchOneBatch(userPos, preset, categoryKey);
-    console.log(`Batch ${i + 1}: ${batch.length}件`);
-
-    if (batch.length >= MIN_BATCH_HITS) {
-      // 成功バッチとしてカウント
-      validBatchCount++;
-      for (const p of batch) {
-        if (!poolById.has(p.id)) {
-          poolById.set(p.id, p);
-        }
-      }
-    } else {
-      console.log(" → 少数バッチなので破棄");
-    }
-
-    // ★ 0件バッチはカウントしない。
-    // 「成功バッチ数」が MIN_BATCH_TRIES を超え、
-    // かつ候補が十分たまったら終了。
-    if (validBatchCount >= MIN_BATCH_TRIES &&
-        poolById.size >= SUGGESTION_COUNT * 3) {
-      break;
-    }
-  }
-
-  console.log("=== Search End ===");
-
-  const candidates = Array.from(poolById.values());
-  if (!candidates.length || validBatchCount === 0) {
-    renderResults([], statusEl, resultsEl);
-    return;
-  }
-
-  const suggestions = pickRandom(candidates, SUGGESTION_COUNT);
-  renderResults(suggestions, statusEl, resultsEl);
-}
-
-// -----------------------------
-// Google Maps JS callback
-// -----------------------------
-
-window.initApp = function () {
-  console.log("Google Maps Loaded");
-
-  const searchBtn = document.getElementById("searchBtn");
-  const retryBtn = document.getElementById("retryBtn");
-
-  if (!searchBtn) {
-    console.error("searchBtn が見つかりません。");
-    return;
-  }
-
-  searchBtn.addEventListener("click", () => {
-    searchPlaces().catch(e => {
-      console.error(e);
-      const statusEl = document.getElementById("status");
-      if (statusEl) statusEl.textContent = "検索中にエラーが発生しました。";
-    });
-  });
-
-  if (retryBtn) {
-    retryBtn.addEventListener("click", () => {
-      searchPlaces().catch(e => {
-        console.error(e);
-        const statusEl = document.getElementById("status");
-        if (statusEl) statusEl.textContent = "検索中にエラーが発生しました。";
-      });
-    });
-  }
-
-  const statusEl = document.getElementById("status");
-  if (statusEl) {
-    statusEl.textContent = "カテゴリと距離を選んで「提案！」を押してください。";
-  }
-};
+   
+   // 距離モード
+   const DISTANCE_MODES = {
+     justnow: { ringMinKm: 0.5, ringMaxKm: 0.5, radiusKm: 0.5 },
+     near:    { ringMinKm: 15,  ringMaxKm: 15,  radiusKm: 2 },
+     mid:     { ringMinKm: 50,  ringMaxKm: 50,  radiusKm: 5 },
+     minitrip:{ ringMinKm: 100, ringMaxKm: 100, radiusKm: 10 },
+     far:     { ringMinKm: 200, ringMaxKm: 800, radiusKm: 50 },
+   };
+   
+   // DOM取得
+   const statusEl = document.getElementById("status");
+   const resultsEl = document.getElementById("results");
+   const retryBtn = document.getElementById("retryBtn");
+   
+   
+   // ------------------------------
+   // ユーティリティ
+   // ------------------------------
+   
+   // 指定範囲のランダム数
+   function rand(min, max) {
+     return Math.random() * (max - min) + min;
+   }
+   
+   // 現在地から距離 d(km)、方位 θ(rad) の地点を算出（球面）
+   function computeOffset(lat, lng, distanceKm, headingRad) {
+     const R = 6371;
+     const dByR = distanceKm / R;
+   
+     const newLat = Math.asin(
+       Math.sin(lat * Math.PI/180) * Math.cos(dByR) +
+       Math.cos(lat * Math.PI/180) * Math.sin(dByR) * Math.cos(headingRad)
+     );
+   
+     const newLng = lng * Math.PI/180 +
+       Math.atan2(
+         Math.sin(headingRad) * Math.sin(dByR) * Math.cos(lat * Math.PI/180),
+         Math.cos(dByR) - Math.sin(lat * Math.PI/180) * Math.sin(newLat)
+       );
+   
+     return {
+       lat: newLat * 180 / Math.PI,
+       lng: newLng * 180 / Math.PI
+     };
+   }
+   
+   // ランダムに要素を取り出す
+   function pickRandom(arr, count) {
+     const copy = [...arr];
+     const picked = [];
+     while (picked.length < count && copy.length > 0) {
+       const idx = Math.floor(Math.random() * copy.length);
+       picked.push(copy.splice(idx, 1)[0]);
+     }
+     return picked;
+   }
+   
+   
+   // ------------------------------
+   // Nearby Search 1バッチ実行
+   // ------------------------------
+   async function searchOneBatch(modeKey, categoryKey, currentLatLng) {
+     const mode = DISTANCE_MODES[modeKey];
+     const ringKm = rand(mode.ringMinKm, mode.ringMaxKm);
+     const radiusM = mode.radiusKm * 1000;
+   
+     const heading = rand(0, Math.PI * 2);
+     const center = computeOffset(currentLatLng.lat, currentLatLng.lng, ringKm, heading);
+   
+     const includedTypes = CATEGORY_TYPES[categoryKey] || [];
+   
+     const request = {
+       fields: [
+         "id",
+         "displayName",
+         "primaryType",
+         "primaryTypeDisplayName",
+         "location",
+         "rating",
+         "formattedAddress",
+         "userRatingCount",
+         "photos",
+       ],
+       locationRestriction: {
+         center: center,
+         radius: radiusM,
+       },
+       maxResultCount: 20,
+       includedPrimaryTypes: includedTypes,
+       rankPreference: google.maps.places.SearchNearbyRankPreference.POPULARITY,
+     };
+   
+     try {
+       const response = await google.maps.places.Place.searchNearby(request);
+       return response.places || [];
+     } catch (err) {
+       console.error("Batch error:", err);
+       return [];
+     }
+   }
+   
+   
+   // ------------------------------
+   // メイン検索フロー
+   // ------------------------------
+   async function searchPlaces() {
+     statusEl.textContent = "検索中...";
+     resultsEl.innerHTML = "";
+     retryBtn.disabled = true;
+   
+     // 位置情報取得
+     const position = await new Promise((resolve, reject) => {
+       navigator.geolocation.getCurrentPosition(resolve, reject, {
+         enableHighAccuracy: true,
+         timeout: 10000
+       });
+     }).catch((err) => {
+       statusEl.textContent = "位置情報の取得に失敗しました。再試行してください。";
+       retryBtn.disabled = false;
+       throw err;
+     });
+   
+     const currentLatLng = {
+       lat: position.coords.latitude,
+       lng: position.coords.longitude,
+     };
+   
+     const modeKey = document.getElementById("distance").value;
+     const categoryKey = document.getElementById("category").value;
+   
+     let poolById = new Map();
+     let successBatchCount = 0;
+   
+     for (let i = 1; i <= MAX_BATCH_TRIES; i++) {
+       const places = await searchOneBatch(modeKey, categoryKey, currentLatLng);
+       console.log(`Batch ${i}: ${places.length}件`);
+   
+       const filtered = places.filter(p => p.rating >= 4.0);
+   
+       if (filtered.length >= MIN_BATCH_HITS) {
+         successBatchCount++;
+         filtered.forEach(p => poolById.set(p.id, p));
+       }
+   
+       if (
+         successBatchCount >= MIN_SUCCESS_BATCH &&
+         poolById.size >= SUGGESTION_COUNT * 3
+       ) {
+         break;
+       }
+     }
+   
+     const finalCandidates = Array.from(poolById.values());
+     if (finalCandidates.length === 0) {
+       statusEl.textContent = "十分な件数が見つかりませんでした。再検索してみてください。";
+       retryBtn.disabled = false;
+       return;
+     }
+   
+     const picked = pickRandom(finalCandidates, SUGGESTION_COUNT);
+   
+     resultsEl.innerHTML = picked.map(item => {
+       const name = item.displayName || "名称不明";
+       const type = item.primaryTypeDisplayName || "カテゴリ不明";
+       const address = item.formattedAddress || "住所情報なし";
+       const rating = item.rating != null ? item.rating : "評価なし";
+   
+       let photoHtml = "";
+       if (item.photos && item.photos.length > 0) {
+         const url = item.photos[0].getURI({
+           maxHeight: 300,
+           maxWidth: 400,
+         });
+         photoHtml = `<img src="${url}" alt="photo">`;
+       }
+   
+       const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name)}&query_place_id=${item.id}`;
+   
+       return `
+         <div class="result-card">
+           ${photoHtml}
+           <h3>${name}</h3>
+           <p>${type}</p>
+           <p>評価: ${rating}</p>
+           <p>${address}</p>
+           <a href="${mapsUrl}" target="_blank">Googleマップで見る</a>
+         </div>
+       `;
+     }).join("");
+   
+     statusEl.textContent = "検索完了！";
+     retryBtn.disabled = false;
+   }
+   
+   
+   // ------------------------------
+   // イベント登録
+   // ------------------------------
+   document.getElementById("searchBtn").addEventListener("click", searchPlaces);
+   document.getElementById("retryBtn").addEventListener("click", searchPlaces);
+   
+   
+   // ------------------------------
+   // Google Maps 初期化
+   // ------------------------------
+   function initApp() {
+     console.log("Google Maps Loaded");
+   }
+   
+   window.initApp = initApp;
+   
