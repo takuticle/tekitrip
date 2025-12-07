@@ -190,6 +190,21 @@
       font-size: 18px;
       z-index: 1000;
     }
+    .main-search-btn {
+      width: 90%;
+      max-width: 400px;
+      padding: 14px;
+      font-size: 16px;
+      border-radius: 999px;
+      border: none;
+      background: #e53935;
+      color: #fff;
+      font-weight: 600;
+    }
+    .main-search-btn:disabled {
+      opacity: 0.6;
+    }
+
   </style>
 
   <!-- APIキー設定 -->
@@ -252,12 +267,12 @@
       <button data-mode="far">旅行で行く</button>
     </div>
 
+    <div style="margin-top: 12px; text-align:center;">
+      <button id="searchBtn" class="main-search-btn">提案！</button>
+    </div>
+    
     <div id="results"></div>
     <div id="retryContainer"></div>
   </main>
-
-  <div class="footer-buttons">
-    <button id="searchBtn">提案！</button>
-  </div>
 </body>
 </html>
