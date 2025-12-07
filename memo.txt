@@ -1,0 +1,15 @@
+* bed_and_breakfast
+* campground
+* camping_cabin
+* cottage
+* guest_house
+* hostel
+* hotel
+* inn
+* japanese_inn
+* lodging
+* mobile_home_park
+* motel
+* private_guest_room
+* resort_hotel
+* rv_park

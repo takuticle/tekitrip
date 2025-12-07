@@ -2,183 +2,262 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>Tekitrip</title>
+  <title>Tekitrip - ランダムおでかけ提案</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- キャッシュ抑止（ブラウザ側ヒント） -->
+  <!-- 簡易キャッシュ抑止 -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- PWA 関連 -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1976d2" />
 
   <style>
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-        sans-serif;
       margin: 0;
-      padding: 16px;
-      background: #f4f4f4;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f5;
+      color: #222;
+      padding-bottom: 80px; /* 下部固定ボタン分 */
     }
-    .container {
+    header {
+      padding: 12px 16px 8px;
+      background: #1976d2;
+      color: #fff;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 20px;
+    }
+    header p {
+      margin: 4px 0 0;
+      font-size: 12px;
+      opacity: 0.85;
+    }
+    main {
+      padding: 8px 12px 16px;
       max-width: 800px;
       margin: 0 auto;
-      background: #fff;
-      padding: 16px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
-    h1 {
-      font-size: 20px;
-      margin-top: 0;
+    .section-title {
+      margin: 8px 0 4px;
+      font-size: 14px;
+      font-weight: 600;
     }
-    .controls {
+
+    /* カテゴリボタン */
+    .category-buttons {
       display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-    .controls-row {
-      display: flex;
-      gap: 8px;
       flex-wrap: wrap;
+      gap: 8px;
     }
-    select, button {
-      padding: 8px;
+    .category-buttons button {
+      flex: 1 1 calc(50% - 8px);
+      padding: 10px;
+      border-radius: 999px;
+      border: 1px solid #ccc;
+      background: #fff;
       font-size: 14px;
     }
+    .category-buttons button.active {
+      background: #1976d2;
+      color: #fff;
+      border-color: #1976d2;
+    }
+
+    /* 距離モード（横スクロール） */
+    .distance-scroll {
+      display: flex;
+      overflow-x: auto;
+      gap: 8px;
+      padding-bottom: 4px;
+    }
+    .distance-scroll button {
+      flex: 0 0 auto;
+      padding: 8px 14px;
+      border-radius: 16px;
+      border: 1px solid #ccc;
+      background: #fff;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .distance-scroll button.active {
+      background: #388e3c;
+      color: #fff;
+      border-color: #388e3c;
+    }
+
     #status {
       margin: 8px 0;
-      font-size: 14px;
+      font-size: 13px;
+      color: #444;
     }
+
+    /* 結果カード */
     #results {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
+      margin-top: 8px;
     }
-    .place-card {
+    .result-card {
       display: flex;
-      gap: 8px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 8px;
-      background: #fafafa;
+      gap: 10px;
+      background: #fff;
+      padding: 10px;
+      border-radius: 12px;
+      margin: 8px 0;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.08);
     }
-    .place-photo-wrap {
+    .result-card img {
+      width: 96px;
+      height: 96px;
+      object-fit: cover;
+      border-radius: 10px;
       flex-shrink: 0;
     }
-    .place-photo {
-      width: 120px;
-      height: 90px;
-      object-fit: cover;
-      border-radius: 6px;
-    }
-    .place-main {
+    .place-info {
       flex: 1;
+      min-width: 0;
+    }
+    .place-info h3 {
+      margin: 0 0 4px;
+      font-size: 15px;
+    }
+    .place-info p {
+      margin: 2px 0;
+      font-size: 12px;
+      color: #555;
+    }
+    .maps-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 6px;
+      font-size: 13px;
+      text-decoration: none;
+      color: #1976d2;
+    }
+
+    /* もう一回ボタン（結果の一番下） */
+    #retryContainer {
+      margin: 10px 0 0;
+      text-align: center;
+    }
+    #retryContainer button {
+      padding: 10px 20px;
+      border-radius: 999px;
+      border: none;
+      background: #1976d2;
+      color: #fff;
       font-size: 14px;
     }
-    .place-name {
-      font-weight: bold;
-      margin-bottom: 4px;
+
+    /* 下部固定フッターボタン（提案！） */
+    .footer-buttons {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      padding: 10px 12px 14px;
+      background: rgba(255,255,255,0.95);
+      box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
+      z-index: 999;
     }
-    .place-category {
-      color: #555;
-      margin-bottom: 2px;
+    .footer-buttons button {
+      width: 100%;
+      padding: 14px;
+      font-size: 16px;
+      border-radius: 999px;
+      border: none;
+      background: #e53935;
+      color: #fff;
+      font-weight: 600;
     }
-    .place-rating, .place-address {
-      margin-bottom: 2px;
-    }
-    .place-link a {
-      color: #1a73e8;
-      text-decoration: none;
-    }
-    .place-link a:hover {
-      text-decoration: underline;
+    .footer-buttons button:disabled {
+      opacity: 0.6;
     }
 
-    @media (max-width: 600px) {
-      .place-card {
-        flex-direction: column;
-      }
-      .place-photo {
-        width: 100%;
-        height: auto;
-      }
+    /* ローディングオーバーレイ */
+    .loading-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0,0,0,0.4);
+      color: #fff;
+      font-size: 18px;
+      z-index: 1000;
     }
   </style>
-</head>
-<body>
-  <div class="container">
-    <h1>テキトリップ</h1>
-
-    <div class="controls">
-      <div class="controls-row">
-        <label>
-          カテゴリ:
-          <select id="category">
-            <option value="food">フード＆ドリンク</option>
-            <option value="shopping">ショッピング</option>
-            <option value="outdoor">アウトドア＆レクリエーション</option>
-            <option value="stay">宿泊地</option>
-          </select>
-        </label>
-      </div>
-      <div class="controls-row">
-        <label>
-          距離:
-          <select id="distance">
-            <option value="justnow">ここらへん</option>
-            <option value="near">今から行く（約15km）</option>
-            <option value="mid">1日で行く（約50km）</option>
-            <option value="minitrip">1泊まで（約100km）</option>
-            <option value="trip">旅行で行く（200〜800km）</option>
-          </select>
-        </label>
-      </div>
-      <div class="controls-row">
-        <button id="searchBtn">提案！</button>
-        <button id="retryBtn">もう一回！</button>
-      </div>
-    </div>
-
-    <div id="status">カテゴリと距離を選んで「提案！」を押してください。</div>
-    <div id="results"></div>
-  </div>
 
   <!-- APIキー設定 -->
   <script src="config.js"></script>
 
-  <!-- app.js をキャッシュバスター付きで読み込む -->
+  <!-- app.js & Maps JS をバージョン付きで読み込み -->
   <script>
     (function() {
-      var s = document.createElement('script');
-      var v = new Date();
-      var ver = v.getFullYear().toString()
-              + ('0' + (v.getMonth() + 1)).slice(-2)
-              + ('0' + v.getDate()).slice(-2)
-              + ('0' + v.getHours()).slice(-2)
-              + ('0' + v.getMinutes()).slice(-2);
-      s.src = 'app.js?v=' + ver;
-      document.head.appendChild(s);
+      const now = new Date();
+      const ver = [
+        now.getFullYear(),
+        String(now.getMonth()+1).padStart(2,"0"),
+        String(now.getDate()).padStart(2,"0"),
+        String(now.getHours()).padStart(2,"0"),
+        String(now.getMinutes()).padStart(2,"0")
+      ].join("");
+
+      const appScript = document.createElement("script");
+      appScript.src = "app.js?v=" + ver;
+      document.head.appendChild(appScript);
+
+      const mapsScript = document.createElement("script");
+      mapsScript.src =
+        "https://maps.googleapis.com/maps/api/js?key=" +
+        window.APP_CONFIG.GOOGLE_MAPS_API_KEY +
+        "&libraries=places&callback=initApp";
+      mapsScript.async = true;
+      mapsScript.defer = true;
+      document.head.appendChild(mapsScript);
     })();
   </script>
+</head>
+<body>
+  <div class="loading-overlay" id="loading">
+    検索中…
+  </div>
 
-  <!-- Google Maps JavaScript API（callback で initApp を呼ぶ） -->
-  <script
-    id="gmaps-loader"
-    async
-    defer
-  ></script>
+  <header>
+    <h1>Tekitrip</h1>
+    <p>気分で行き先を決めるランダムおでかけ提案ツール</p>
+  </header>
 
-  <script>
-    // config.js から API キーを差し込む
-    (function() {
-      const script = document.getElementById('gmaps-loader');
-      if (!script || !window.APP_CONFIG || !window.APP_CONFIG.GOOGLE_MAPS_API_KEY) return;
-      const key = encodeURIComponent(window.APP_CONFIG.GOOGLE_MAPS_API_KEY);
-      script.src =
-        `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places&callback=initApp`;
-    })();
-  </script>
+  <main>
+    <div id="status">カテゴリと距離感を選んで「提案！」を押してください。</div>
 
+    <div class="section-title">カテゴリ</div>
+    <div class="category-buttons" id="categoryButtons">
+      <button data-cat="food" class="active">フード＆ドリンク</button>
+      <button data-cat="shopping">ショッピング</button>
+      <button data-cat="outdoor">アウトドア＆レクリエーション</button>
+      <button data-cat="stay">宿泊地</button>
+    </div>
+
+    <div class="section-title">距離感</div>
+    <div class="distance-scroll" id="distanceButtons">
+      <button data-mode="justnow" class="active">ここらへん</button>
+      <button data-mode="near">今から行く</button>
+      <button data-mode="mid">1日で行く</button>
+      <button data-mode="minitrip">1泊まで</button>
+      <button data-mode="far">旅行で行く</button>
+    </div>
+
+    <div id="results"></div>
+    <div id="retryContainer"></div>
+  </main>
+
+  <div class="footer-buttons">
+    <button id="searchBtn">提案！</button>
+  </div>
 </body>
 </html>
